@@ -16,7 +16,6 @@ import org.springframework.http.*;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * API TEST (End-to-End)
@@ -195,37 +194,62 @@ class LibraryApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("should return 409 when borrowing limit exceeded")
         void shouldReturn409_WhenBorrowLimitExceeded() {
-            // TODO:
-            // 1. Create a STUDENT member (limit = 2 books)
-            // 2. Create 3 different books
-            // 3. Borrow 2 books successfully
-            // 4. Try to borrow a 3rd book — should return 409 CONFLICT
-            fail("Not implemented yet");
+            Member student = createTestMember("Bob", "bob@test.com", MembershipType.STUDENT);
+            Book book1 = createTestBook("978-1", "Book One", "Author A");
+            Book book2 = createTestBook("978-2", "Book Two", "Author B");
+            Book book3 = createTestBook("978-3", "Book Three", "Author C");
+
+            ResponseEntity<Map> first = restTemplate.postForEntity(
+                    baseUrl + "/borrows", new BorrowRequest(book1.getId(), student.getId()), Map.class);
+            ResponseEntity<Map> second = restTemplate.postForEntity(
+                    baseUrl + "/borrows", new BorrowRequest(book2.getId(), student.getId()), Map.class);
+
+            assertThat(first.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+            assertThat(second.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+            ResponseEntity<Map> third = restTemplate.postForEntity(
+                    baseUrl + "/borrows", new BorrowRequest(book3.getId(), student.getId()), Map.class);
+
+            assertThat(third.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         }
 
         @Test
         @DisplayName("should return 409 when no copies available")
         void shouldReturn409_WhenNoCopiesAvailable() {
-            // TODO:
-            // 1. Create a book with totalCopies = 1
-            // 2. Create 2 members
-            // 3. First member borrows the book successfully
-            // 4. Second member tries to borrow — should return 409
-            fail("Not implemented yet");
+            Book book = bookRepository.save(new Book("978-1", "Only Copy", "Author A", 1, Genre.TECHNOLOGY));
+            Member first = createTestMember("Alice", "alice@test.com", MembershipType.STANDARD);
+            Member second = createTestMember("Bob", "bob@test.com", MembershipType.STANDARD);
+
+            ResponseEntity<Map> firstBorrow = restTemplate.postForEntity(
+                    baseUrl + "/borrows", new BorrowRequest(book.getId(), first.getId()), Map.class);
+            assertThat(firstBorrow.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+            ResponseEntity<Map> secondBorrow = restTemplate.postForEntity(
+                    baseUrl + "/borrows", new BorrowRequest(book.getId(), second.getId()), Map.class);
+
+            assertThat(secondBorrow.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         }
 
         @Test
         @DisplayName("should return 404 when member does not exist")
         void shouldReturn404_WhenMemberNotFound() {
-            // TODO: Try to borrow with a non-existent memberId
-            fail("Not implemented yet");
+            Book book = createTestBook("978-1", "A Book", "Author A");
+
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    baseUrl + "/borrows", new BorrowRequest(book.getId(), 99999L), Map.class);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         }
 
         @Test
         @DisplayName("should return 404 when book does not exist")
         void shouldReturn404_WhenBookNotFound() {
-            // TODO: Try to borrow a non-existent bookId
-            fail("Not implemented yet");
+            Member member = createTestMember("Alice", "alice@test.com", MembershipType.STANDARD);
+
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    baseUrl + "/borrows", new BorrowRequest(99999L, member.getId()), Map.class);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         }
     }
 
@@ -236,27 +260,48 @@ class LibraryApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("should create a member and return 201")
         void shouldCreateMember() {
-            // TODO: POST a new member to /api/members
-            //       Verify 201 status and response body
-            fail("Not implemented yet");
+            Member newMember = new Member("Carol", "carol@test.com", MembershipType.PREMIUM);
+
+            ResponseEntity<Member> response = restTemplate.postForEntity(
+                    baseUrl + "/members", newMember, Member.class);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+            assertThat(response.getBody()).isNotNull();
+            assertThat(response.getBody().getId()).isNotNull();
+            assertThat(response.getBody().getName()).isEqualTo("Carol");
+            assertThat(response.getBody().getEmail()).isEqualTo("carol@test.com");
+            assertThat(response.getBody().getMembershipType()).isEqualTo(MembershipType.PREMIUM);
+            assertThat(response.getBody().isActive()).isTrue();
         }
 
         @Test
         @DisplayName("should deactivate a member via DELETE")
         void shouldDeactivateMember() {
-            // TODO:
-            // 1. Create a member
-            // 2. DELETE /api/members/{id}
-            // 3. GET /api/members/{id} and verify active = false
-            fail("Not implemented yet");
+            Member member = createTestMember("Dave", "dave@test.com", MembershipType.STANDARD);
+
+            ResponseEntity<Void> deleteResponse = restTemplate.exchange(
+                    baseUrl + "/members/" + member.getId(),
+                    HttpMethod.DELETE,
+                    null,
+                    Void.class);
+            assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+            ResponseEntity<Member> getResponse = restTemplate.getForEntity(
+                    baseUrl + "/members/" + member.getId(), Member.class);
+            assertThat(getResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(getResponse.getBody()).isNotNull();
+            assertThat(getResponse.getBody().isActive()).isFalse();
         }
 
         @Test
         @DisplayName("should return 400 when creating member with invalid email")
         void shouldReturn400_WhenInvalidEmail() {
-            // TODO: POST a member with an invalid email
-            //       Verify 400 BAD REQUEST
-            fail("Not implemented yet");
+            Member invalid = new Member("Eve", "not-an-email", MembershipType.STANDARD);
+
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    baseUrl + "/members", invalid, Map.class);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -267,19 +312,44 @@ class LibraryApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("should search books by keyword via GET /api/books/search?keyword=...")
         void shouldSearchBooks() {
-            // TODO: Create several books, search by keyword, verify results
-            fail("Not implemented yet");
+            createTestBook("978-1", "Clean Code", "Robert C. Martin");
+            createTestBook("978-2", "Clean Architecture", "Robert C. Martin");
+            createTestBook("978-3", "Design Patterns", "Gang of Four");
+
+            ResponseEntity<Book[]> response = restTemplate.getForEntity(
+                    baseUrl + "/books/search?keyword=clean", Book[].class);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody()).hasSize(2);
+            assertThat(response.getBody()).extracting(Book::getTitle)
+                    .containsExactlyInAnyOrder("Clean Code", "Clean Architecture");
         }
 
         @Test
         @DisplayName("should get active borrows for a member")
         void shouldGetActiveBorrows() {
-            // TODO:
-            // 1. Create a member and 2 books
-            // 2. Borrow both books
-            // 3. Return one of them
-            // 4. GET /api/borrows/member/{id}/active — should return only 1
-            fail("Not implemented yet");
+            Member member = createTestMember("Frank", "frank@test.com", MembershipType.STANDARD);
+            Book book1 = createTestBook("978-1", "Book One", "Author A");
+            Book book2 = createTestBook("978-2", "Book Two", "Author B");
+
+            ResponseEntity<Map> b1 = restTemplate.postForEntity(
+                    baseUrl + "/borrows", new BorrowRequest(book1.getId(), member.getId()), Map.class);
+            ResponseEntity<Map> b2 = restTemplate.postForEntity(
+                    baseUrl + "/borrows", new BorrowRequest(book2.getId(), member.getId()), Map.class);
+            assertThat(b1.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+            assertThat(b2.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+            Number borrowId1 = (Number) b1.getBody().get("id");
+            ResponseEntity<Map> ret = restTemplate.postForEntity(
+                    baseUrl + "/borrows/" + borrowId1.longValue() + "/return", null, Map.class);
+            assertThat(ret.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+            ResponseEntity<Map[]> active = restTemplate.getForEntity(
+                    baseUrl + "/borrows/member/" + member.getId() + "/active", Map[].class);
+
+            assertThat(active.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(active.getBody()).hasSize(1);
+            assertThat(active.getBody()[0]).containsEntry("bookTitle", "Book Two");
         }
     }
 }
