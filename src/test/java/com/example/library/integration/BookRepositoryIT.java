@@ -113,14 +113,18 @@ class BookRepositoryIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("should find books by genre")
         void shouldFindByGenre() {
+            //Saves books.
             createBook("978-0-55-329241-3", "A Brief History of Time", "Stephen Hawking", 2, Genre.SCIENCE);
             createBook("978-0-39-333230-3", "Cosmos", "Carl Sagan", 3, Genre.SCIENCE);
             createBook("978-0-43-935806-9", "Harry Potter and the Sorcerer's Stone", "J.K. Rowling", 5, Genre.FICTION);
             createBook("978-0-06-093546-9", "Sapiens", "Yuval Noah Harari", 4, Genre.HISTORY);
 
+            //This searches only for science genre.
             List<Book> results = bookRepository.findByGenre(Genre.SCIENCE);
 
+            //There are 2 science books.
             assertThat(results).hasSize(2);
+            //we check the results.
             assertThat(results).extracting(Book::getTitle)
                     .containsExactlyInAnyOrder("A Brief History of Time", "Cosmos");
         }
@@ -128,13 +132,17 @@ class BookRepositoryIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("should find books by author (case insensitive, partial match)")
         void shouldFindByAuthor() {
+            //Saves books.
             createBook("978-0-43-935806-9", "Harry Potter and the Sorcerer's Stone", "J.K. Rowling", 3, Genre.FICTION);
             createBook("978-0-43-935807-6", "Harry Potter and the Chamber of Secrets", "J.K. Rowling", 2, Genre.FICTION);
             createBook("978-0-26-110325-1", "The Lord of the Rings", "J.R.R. Tolkien", 5, Genre.FICTION);
 
+            //This searches authors containing "rowling". It should find "J.K. Rowling".
             List<Book> results = bookRepository.findByAuthorContainingIgnoreCase("rowling");
 
+            //There are 2 rowling books.
             assertThat(results).hasSize(2);
+            //we check that every author's name contains "rowling" after we convert to lowercase.
             assertThat(results).extracting(Book::getAuthor)
                     .allMatch(author -> author.toLowerCase().contains("rowling"));
         }
@@ -146,9 +154,12 @@ class BookRepositoryIT extends AbstractIntegrationTest {
             createBook("978-0-55-329241-3", "A Brief History of Time", "Stephen Hawking", 2, Genre.SCIENCE);
             createBook("978-0-26-110325-1", "The Lord of the Rings", "J.R.R. Tolkien", 4, Genre.FICTION);
 
+            //We search by author keyword "Tolkien".
             List<Book> results = bookRepository.searchBooks("Tolkien");
 
+            //Only one book should match.
             assertThat(results).hasSize(1);
+            //We check the matched book. it should be The Lord of the Rings.
             assertThat(results.get(0).getTitle()).isEqualTo("The Lord of the Rings");
         }
 
@@ -158,8 +169,10 @@ class BookRepositoryIT extends AbstractIntegrationTest {
             createBook("978-0-43-935806-9", "Harry Potter and the Sorcerer's Stone", "J.K. Rowling", 3, Genre.FICTION);
             createBook("978-0-26-110325-1", "The Lord of the Rings", "J.R.R. Tolkien", 5, Genre.FICTION);
 
+            //We search using a keyword that should not match anything.
             List<Book> results = bookRepository.searchBooks("xyznonexistentkeyword");
 
+            //Result should be empty.
             assertThat(results).isEmpty();
         }
     }
@@ -173,9 +186,12 @@ class BookRepositoryIT extends AbstractIntegrationTest {
         void shouldEnforceUniqueIsbn() {
             createBook("978-0-43-935806-9", "Harry Potter and the Sorcerer's Stone", "J.K. Rowling", 2, Genre.FICTION);
 
+            //We creat another book with the same ISBN. This should violate the unique ISBN constraint.
             Book duplicate = new Book("978-0-43-935806-9", "Harry Potter and the Goblet of Fire", "J.K. Rowling", 3, Genre.FICTION);
+            //We are seting a different published date.
             duplicate.setPublishedDate(LocalDate.of(2021, 1, 1));
 
+            //We check if saving the same ISBN again gives an error.
             assertThrows(DataIntegrityViolationException.class, () -> {
                 bookRepository.saveAndFlush(duplicate);
             });
@@ -185,12 +201,14 @@ class BookRepositoryIT extends AbstractIntegrationTest {
         @DisplayName("should handle deleting a book")
         void shouldDeleteBook() {
             Book saved = createBook("978-0-43-935806-9", "Harry Potter and the Sorcerer's Stone", "J.K. Rowling", 2, Genre.FICTION);
+            //This gets the database ID of the saved book.
             Long savedId = saved.getId();
-
+            //First we check that the book really exists.
             assertThat(bookRepository.findById(savedId)).isPresent();
-
+            //Then we delete the book by ID.
             bookRepository.deleteById(savedId);
 
+            //After this, the book should no longer exist.
             assertThat(bookRepository.findById(savedId)).isEmpty();
         }
     }
